@@ -1,10 +1,10 @@
 // Exercises the full rapier.js API (not just stepping) and reports numbers that must match between
 // the threads build and the official single-threaded SIMD build of the same upstream version.
-self.onmessage = async ({ data: { pkg, dim, threads, steps } }) => {
+self.onmessage = async ({ data: { pkg, dim, threads, steps, url: override } }) => {
   try {
-    const url = pkg === "threads"
+    const url = override ?? (pkg === "threads"
       ? `/dist/rapier${dim}d-threads/rapier.js`
-      : `/node_modules/@dimforge/rapier${dim}d-simd-compat/dist/rapier.mjs`;
+      : `/node_modules/@dimforge/rapier${dim}d-simd-compat/dist/rapier.mjs`);
     const RAPIER = (await import(url)).default;
     await (pkg === "threads" ? RAPIER.init({ threads }) : RAPIER.init());
     self.postMessage({ type: "done", report: dim === 3 ? scene3d(RAPIER, steps) : scene2d(RAPIER, steps), pkg,

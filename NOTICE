@@ -8,7 +8,7 @@ Rapier is a trademark of its owners; this project is not affiliated with or endo
 Modifications made by this project (applied at build time to the generated build crate only):
   - enables the `parallel` and `unsync-callbacks` features of the rapier crate;
   - adds the `wasm-bindgen-rayon` dependency and exports `initThreadPool`;
-  - compiles with WebAssembly threads (atomics, shared memory) and SIMD;
+  - compiles with WebAssembly threads (atomics, shared memory) and SIMD, with LTO, then runs wasm-opt;
   - replaces `raw.ts` and `init.ts` of the TypeScript bindings;
   - adds a small Vite plugin (vite.js) that serves the package files unmodified.
 

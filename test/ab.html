@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>rapier-threads A/B build benchmark</title>
+<style>body{font:13px/1.5 ui-monospace,Consolas,monospace;background:#111;color:#ddd;padding:16px}</style></head>
+<body>
+<h3>A/B: two builds of the threads package, same scene, alternating rounds</h3>
+<pre id="out">running…</pre>
+<script type="module">
+// /test/ab.html?a=/dist-baseline&b=/dist&dim=3&threads=6&steps=300&rounds=3
+const q = new URLSearchParams(location.search);
+const dim = Number(q.get("dim") ?? 3), threads = Number(q.get("threads") ?? 6);
+const steps = Number(q.get("steps") ?? 300), rounds = Number(q.get("rounds") ?? 3);
+const builds = { A: q.get("a") ?? "/dist-baseline", B: q.get("b") ?? "/dist" };
+const out = document.getElementById("out"), lines = [];
+const say = (s) => { lines.push(s); out.textContent = lines.join("\n"); };
+const run = (base) => new Promise((res) => {
+  const w = new Worker("/test/worker.js", { type: "module" });
+  w.onmessage = ({ data }) => { w.terminate(); res(data); };
+  w.postMessage({ pkg: "threads", dim, threads, steps, url: `${base}/rapier${dim}d-threads/rapier.js` });
+});
+const sum = { A: [], B: [] };
+let checks = {};
+for (let r = 1; r <= rounds; r++) {
+  for (const k of r % 2 ? ["A", "B"] : ["B", "A"]) {
+    const d = await run(builds[k]);
+    if (d.type !== "done") { say(`${k} error: ${d.message}`); window.__ab = { error: d.message }; throw 0; }
+    sum[k].push(d.report.stepMeanMs);
+    checks[k] = d.report.avgY;
+    say(`round ${r} ${k} (${builds[k]}): mean ${d.report.stepMeanMs.toFixed(2)} ms, median ${d.report.stepMedianMs.toFixed(2)} ms`);
+  }
+}
+const avg = (a) => a.reduce((x, y) => x + y, 0) / a.length;
+const a = avg(sum.A), b = avg(sum.B);
+say(`\nA ${a.toFixed(2)} ms · B ${b.toFixed(2)} ms · B is ${((1 - b / a) * 100).toFixed(1)}% ${b < a ? "faster" : "slower"}`);
+say(`same physics: ${Math.abs(checks.A - checks.B) < 1e-3 ? "yes" : "NO"} (avgY ${checks.A?.toFixed(4)} vs ${checks.B?.toFixed(4)})`);
+window.__ab = { a, b, gainPct: (1 - b / a) * 100, same: Math.abs(checks.A - checks.B) < 1e-3, rounds: sum };
+</script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Builds multi-threaded Rapier JS packages from an unmodified upstream checkout.
 //
-//   node scripts/build.mjs [--dim 3] [--skip-fetch] [--wasm-opt]
+//   node scripts/build.mjs [--dim 3] [--skip-fetch] [--no-lto] [--no-wasm-opt]
 //
 // Nothing in upstream is patched. We run upstream's own generator for the `simd` variant and then
 // apply a few *additive* edits to the generated crate (enable `parallel`, add wasm-bindgen-rayon,
@@ -174,17 +174,24 @@ function buildWasm(dim, crateDir) {
       "-Z", "build-std=panic_abort,std", "--target-dir", join(BINDINGS, "target", "threads")],
     // Upstream's release profile has `strip = true`, which drops the `target_features` section that
     // wasm-bindgen reads to detect threads. Strip only debuginfo for this build.
-    { cwd: BINDINGS, env: { ...process.env, RUSTFLAGS: rustflags, CARGO_PROFILE_RELEASE_STRIP: "debuginfo" } },
+    // LTO: upstream leaves it commented out in its profile; we enable it for this build only
+    // (`--no-lto` to compare).
+    { cwd: BINDINGS, env: { ...process.env, RUSTFLAGS: rustflags, CARGO_PROFILE_RELEASE_STRIP: "debuginfo",
+      ...(flag("--no-lto") ? {} : { CARGO_PROFILE_RELEASE_LTO: "fat" }) } },
   );
   const wasm = join(BINDINGS, "target", "threads", "wasm32-unknown-unknown", "release", `rapier_wasm${dim}d.wasm`);
   must(existsSync(wasm), `missing ${wasm}`);
   const pkg = join(OUT, `rapier${dim}d-${config.packageSuffix}`);
   rmSync(pkg, { recursive: true, force: true });
   run("wasm-bindgen", ["--target", "web", "--out-dir", pkg, wasm]);
-  if (flag("--wasm-opt")) {
+  if (!flag("--no-wasm-opt")) {
+    // Same optimizer and level as the official builds (wasm-pack runs wasm-opt -O4 there), plus the
+    // features the threaded output uses. binaryen's npm package runs on Node, so no native download.
     const out = join(pkg, `rapier_wasm${dim}d_bg.wasm`);
-    run("npx", ["--yes", "wasm-opt", "-O3", "--enable-threads", "--enable-simd", "--enable-bulk-memory",
-      "--enable-mutable-globals", "--enable-nontrapping-float-to-int", "--enable-sign-ext", out, "-o", out]);
+    const before = statSync(out).size;
+    run("npx", ["wasm-opt", "-O4", "--enable-threads", "--enable-simd", "--enable-bulk-memory", "--enable-mutable-globals",
+      "--enable-nontrapping-float-to-int", "--enable-sign-ext", out, "-o", out], { cwd: root });
+    log(`wasm-opt: ${(before / 1e6).toFixed(2)} MB -> ${(statSync(out).size / 1e6).toFixed(2)} MB`);
   }
   return pkg;
 }

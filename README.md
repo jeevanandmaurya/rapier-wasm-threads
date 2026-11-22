@@ -35,6 +35,9 @@ Nothing in upstream is patched, so new releases don't cause merge conflicts.
    - adds `wasm-bindgen-rayon` and exports `initThreadPool`;
    - builds with `+atomics,+bulk-memory,+mutable-globals,+simd128` and `-Z build-std` on a
      pinned nightly.
+   - adds two build-level optimizations: fat **LTO** (upstream leaves it off) and **wasm-opt -O4**
+     (as upstream does). Measured: 28% smaller `.wasm` (4.92 → 3.55 MB in 3D), the same step time,
+     identical physics (`test/ab.html` compares two builds).
 
    For the TypeScript API, it swaps upstream's `raw.ts`/`init.ts` for [`overlay/ts`](overlay/ts),
    the same way upstream builds its `-compat` packages. Every edit asserts that its anchor exists,
