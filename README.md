@@ -1,4 +1,8 @@
-# rapier-threads
+# rapier-wasm-threads
+
+[![CI](https://github.com/jeevanandmaurya/rapier-wasm-threads/actions/workflows/ci.yml/badge.svg)](https://github.com/jeevanandmaurya/rapier-wasm-threads/actions/workflows/ci.yml)
+
+Packages: `@jeevanandmaurya/rapier3d-threads`, `@jeevanandmaurya/rapier2d-threads` (not published yet).
 
 **Unofficial** multi-threaded WebAssembly builds of the [Rapier](https://rapier.rs) physics engine
 (2D and 3D), with the same JavaScript API as `@dimforge/rapier{2,3}d-simd-compat`.
@@ -62,7 +66,7 @@ a 64-bit MinGW `dlltool`. Linux CI runs both renderers and requires identical ou
 
 ## Publishing setup (one time)
 
-1. Set `npmScope` and `repository` in [`config.json`](config.json).
+1. Check `npmScope` in [`config.json`](config.json) matches your npm username or org.
 2. On npmjs.com, add this repo as a **trusted publisher** for each package (workflow
    `sync-upstream.yml` and `release.yml`), or add an `NPM_TOKEN` repository secret.
 3. Run the **Release (manual)** workflow once to publish the current version. From then on,

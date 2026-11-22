@@ -1,11 +1,11 @@
 {
-  "npmScope": "@CHANGE_ME",
+  "npmScope": "@jeevanandmaurya",
   "packageSuffix": "threads",
   "dims": [
     3,
     2
   ],
   "nightly": "nightly-2026-11-21",
-  "repository": "https://github.com/CHANGE_ME/rapier-threads",
+  "repository": "https://github.com/jeevanandmaurya/rapier-wasm-threads",
   "wasmBindgen": "0.2.130"
 }
