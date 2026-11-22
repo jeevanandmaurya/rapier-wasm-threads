@@ -4,6 +4,8 @@
 
 Packages: [`@jeevanand/rapier3d-threads`](https://www.npmjs.com/package/@jeevanand/rapier3d-threads), [`@jeevanand/rapier2d-threads`](https://www.npmjs.com/package/@jeevanand/rapier2d-threads)
 
+**Write-up:** [how it works](https://jeevanandmaurya.github.io/blog/rapier-wasm-threads/index.html) · [benchmarks](https://jeevanandmaurya.github.io/blog/rapier-wasm-threads/stats.html) · [live demo with large scenes](https://jeevanandmaurya.github.io/blog/rapier-wasm-threads/demo.html)
+
 **Unofficial** multi-threaded WebAssembly builds of the [Rapier](https://rapier.rs) physics engine
 (2D and 3D), with the same JavaScript API as `@dimforge/rapier{2,3}d-simd-compat`.
 Not affiliated with or endorsed by Dimforge.
