@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/jeevanandmaurya/rapier-wasm-threads/actions/workflows/ci.yml/badge.svg)](https://github.com/jeevanandmaurya/rapier-wasm-threads/actions/workflows/ci.yml)
 
-Packages: `@jeevanandmaurya/rapier3d-threads`, `@jeevanandmaurya/rapier2d-threads` (not published yet).
+Packages: [`@jeevanand/rapier3d-threads`](https://www.npmjs.com/package/@jeevanand/rapier3d-threads), [`@jeevanand/rapier2d-threads`](https://www.npmjs.com/package/@jeevanand/rapier2d-threads)
 
 **Unofficial** multi-threaded WebAssembly builds of the [Rapier](https://rapier.rs) physics engine
 (2D and 3D), with the same JavaScript API as `@dimforge/rapier{2,3}d-simd-compat`.
