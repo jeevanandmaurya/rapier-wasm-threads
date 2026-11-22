@@ -4,6 +4,3 @@ dist/
 test-results/
 *.log
 dist-baseline/
-dist-threads/
-dist-next/
-test/bench/*.json
