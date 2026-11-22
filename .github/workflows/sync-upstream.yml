@@ -40,7 +40,9 @@ jobs:
 
       - name: Refresh lockfile
         if: steps.check.outputs.changed == 'true'
-        run: npm install --package-lock-only
+        run: |
+          npm install -g "$(jq -r .packageManager package.json)"
+          npm install --package-lock-only
 
       - name: Build and test
         if: steps.check.outputs.changed == 'true' || inputs.force

@@ -37,6 +37,9 @@ runs:
       run: |
         exec > >(tee -a "$RUNNER_TEMP/ci.log") 2>&1
         set -x
+        # Same npm as package.json "packageManager": lockfiles differ between npm majors
+        # (npm 10 wants optional @emnapi/* entries that npm 11 omits).
+        npm install -g "$(jq -r '.packageManager | sub("^npm@"; "npm@")' package.json)"
         npm ci
 
     - name: Build (upstream generator, with nunjucks parity check)
