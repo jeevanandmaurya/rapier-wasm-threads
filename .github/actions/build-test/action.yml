@@ -8,16 +8,21 @@ runs:
         node-version: 22
         registry-url: https://registry.npmjs.org
 
+    # Every step appends its output to ci.log. On failure, the last lines are posted as an error
+    # annotation, which (unlike raw logs) anyone can read on a public repo.
     - name: Read pinned tool versions
       id: cfg
       shell: bash
       run: |
+        exec > >(tee -a "$RUNNER_TEMP/ci.log") 2>&1
         echo "nightly=$(jq -r .nightly config.json)" >> "$GITHUB_OUTPUT"
         echo "wasm_bindgen=$(jq -r .wasmBindgen config.json)" >> "$GITHUB_OUTPUT"
 
     - name: Rust nightly (+ rust-src, wasm32)
       shell: bash
       run: |
+        exec > >(tee -a "$RUNNER_TEMP/ci.log") 2>&1
+        set -x
         rustup toolchain install "${{ steps.cfg.outputs.nightly }}" --profile minimal \
           --component rust-src --target wasm32-unknown-unknown
         rustup toolchain install stable --profile minimal
@@ -27,27 +32,42 @@ runs:
       with:
         tool: wasm-bindgen@${{ steps.cfg.outputs.wasm_bindgen }}
 
-    - uses: Swatinem/rust-cache@v2
-      with:
-        workspaces: .upstream/bindings/typescript -> target
-        cache-on-failure: true
-
     - name: npm ci
       shell: bash
-      run: npm ci
+      run: |
+        exec > >(tee -a "$RUNNER_TEMP/ci.log") 2>&1
+        set -x
+        npm ci
 
     - name: Build (upstream generator, with nunjucks parity check)
       shell: bash
-      run: node scripts/build.mjs --check-parity
+      run: |
+        exec > >(tee -a "$RUNNER_TEMP/ci.log") 2>&1
+        node scripts/build.mjs --check-parity
 
     - name: Install built packages for the Vite test
       shell: bash
       run: |
+        exec > >(tee -a "$RUNNER_TEMP/ci.log") 2>&1
+        set -x
         for d in dist/*; do npm install --no-save "./$d"; done
 
     - name: Browser tests (conformance vs official, threads, Vite dev + build)
       shell: bash
       run: |
+        exec > >(tee -a "$RUNNER_TEMP/ci.log") 2>&1
+        set -x
         npx playwright install --with-deps chromium
         node test/run.mjs --dims "$(jq -r '.dims | join(",")' config.json)" --threads 2
         node test/vite.mjs
+
+    - name: Report failure as an annotation
+      if: failure()
+      shell: bash
+      run: |
+        [ -f "$RUNNER_TEMP/ci.log" ] || { echo "::error title=CI failed::no log captured (failed in a uses: step)"; exit 0; }
+        # Strip ANSI colors and Cargo progress noise; encode newlines for the annotation.
+        msg=$(sed -E 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/ci.log" \
+          | grep -vE '^\s+(Compiling|Downloaded|Downloading|Checking|Fresh) ' \
+          | tail -n 80 | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | awk 'BEGIN{ORS="%0A"} {print}')
+        echo "::error title=CI failed (last log lines)::$msg"
