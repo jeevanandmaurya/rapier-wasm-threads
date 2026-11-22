@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Rapier benchmark: official vs -threads vs -next</title>
+<style>body{font:13px/1.5 ui-monospace,Consolas,monospace;background:#111;color:#ddd;padding:16px}table{border-collapse:collapse}td,th{padding:3px 10px;text-align:right;border-bottom:1px solid #333}td:first-child,th:first-child{text-align:left}.g{color:#7bd88f}</style></head>
+<body>
+<h3>Benchmark scenes · mean world.step() ms (lower is better)</h3>
+<pre id="log">running…</pre>
+<div id="table"></div>
+<script type="module">
+// /test/bench/?threads=6&steps=400&rounds=2&scenes=pyramid,pile,balls,chains,terrain
+const q = new URLSearchParams(location.search);
+const threads = Number(q.get("threads") ?? 6), steps = Number(q.get("steps") ?? 400), rounds = Number(q.get("rounds") ?? 2);
+const scenes = (q.get("scenes") ?? "pyramid,pile,balls,chains,terrain").split(",");
+const engines = [
+  { id: "official", label: "official SIMD (1 thread)", url: "/node_modules/@dimforge/rapier3d-simd-compat/dist/rapier.mjs", threads: 0 },
+  { id: "threads", label: `-threads (${threads})`, url: "/dist/rapier3d-threads/rapier.js", threads },
+  { id: "next", label: `-next (${threads})`, url: "/dist-next/rapier3d-threads/rapier.js", threads },
+];
+const logEl = document.getElementById("log"), lines = [];
+const log = (s) => { lines.push(s); logEl.textContent = lines.slice(-12).join("\n"); };
+const run = (e, scene) => new Promise((res) => {
+  const w = new Worker("/test/bench/worker.js", { type: "module" });
+  w.onmessage = ({ data }) => { w.terminate(); res(data); };
+  w.postMessage({ url: e.url, threads: e.threads, scene, steps });
+});
+const res = {};
+for (const scene of scenes) {
+  res[scene] = {};
+  for (let r = 0; r < rounds; r++) {
+    const order = r % 2 ? [...engines].reverse() : engines;
+    for (const e of order) {
+      const d = await run(e, scene);
+      if (d.type !== "done") { log(`${scene} ${e.id}: ERROR ${d.message}`); continue; }
+      (res[scene][e.id] ??= { mean: [], p95: [], bodies: d.r.dynamicBodies, avgY: d.r.avgHeight }).mean.push(d.r.stepMs.mean);
+      res[scene][e.id].p95.push(d.r.stepMs.p95);
+      log(`${scene} · ${e.id} · round ${r + 1}: ${d.r.stepMs.mean.toFixed(2)} ms`);
+    }
+  }
+}
+const avg = (a) => a.reduce((x, y) => x + y, 0) / a.length;
+let html = `<table><tr><th>scene</th><th>bodies</th>${engines.map((e) => `<th>${e.label}</th>`).join("")}<th>-threads vs official</th><th>-next vs -threads</th></tr>`;
+const summary = {};
+for (const s of scenes) {
+  const v = Object.fromEntries(engines.map((e) => [e.id, res[s][e.id] ? avg(res[s][e.id].mean) : NaN]));
+  summary[s] = { ...v, p95: Object.fromEntries(engines.map((e) => [e.id, res[s][e.id] ? avg(res[s][e.id].p95) : NaN])), avgY: Object.fromEntries(engines.map((e) => [e.id, res[s][e.id]?.avgY])) };
+  const pct = ((v.threads / v.next - 1) * 100);
+  html += `<tr><td>${s}</td><td>${res[s].official?.bodies ?? ""}</td>${engines.map((e) => `<td>${v[e.id].toFixed(2)}</td>`).join("")}<td class="g">${(v.official / v.threads).toFixed(2)}×</td><td>${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%</td></tr>`;
+}
+document.getElementById("table").innerHTML = html + "</table>";
+log("done");
+window.__bench = summary;
+</script>
+</body>
+</html>
