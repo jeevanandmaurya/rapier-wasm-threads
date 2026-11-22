@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>rapier-threads test</title>
+<style>body{font:13px/1.5 ui-monospace,Consolas,monospace;background:#111;color:#ddd;padding:16px}.ok{color:#7bd88f}.bad{color:#ff6b6b}</style></head>
+<body>
+<h3>rapier-threads conformance + speed test</h3>
+<pre id="out">running…</pre>
+<script type="module">
+const out = document.getElementById("out");
+const q = new URLSearchParams(location.search);
+const dims = (q.get("dims") ?? "3").split(",").map(Number);
+const steps = Number(q.get("steps") ?? 300);
+const threads = Number(q.get("threads") ?? Math.max(1, (navigator.hardwareConcurrency || 4) / 2));
+const lines = [], failures = [];
+const say = (s) => { lines.push(s); out.textContent = lines.join("\n"); };
+const check = (ok, msg) => { say(`${ok ? "PASS" : "FAIL"}  ${msg}`); if (!ok) failures.push(msg); };
+
+function runWorker(msg) {
+  return new Promise((res) => {
+    const w = new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
+    w.onmessage = ({ data }) => { w.terminate(); res(data); };
+    w.onerror = (e) => { w.terminate(); res({ type: "error", message: e.message || "worker failed to load" }); };
+    w.postMessage(msg);
+  });
+}
+
+say(`crossOriginIsolated=${crossOriginIsolated} cores=${navigator.hardwareConcurrency} threads=${threads}`);
+check(crossOriginIsolated, "page is cross-origin isolated");
+
+// init() on the main thread must refuse with a helpful error.
+for (const dim of dims) {
+  const R = (await import(`/dist/rapier${dim}d-threads/rapier.js`)).default;
+  let msg = "";
+  try { await R.init(); } catch (e) { msg = String(e.message); }
+  check(/Web Worker/.test(msg), `${dim}D: init() on main thread rejects with a clear message`);
+}
+
+const results = {};
+for (const dim of dims) {
+  const off = await runWorker({ pkg: "official", dim, steps });
+  const thr = await runWorker({ pkg: "threads", dim, threads, steps });
+  for (const r of [off, thr]) check(r.type === "done", `${dim}D ${r.pkg}: ran without error${r.message ? " — " + r.message : ""}`);
+  if (off.type !== "done" || thr.type !== "done") continue;
+  const a = off.report, b = thr.report;
+  check(off.version === thr.version, `${dim}D: same rapier version (${off.version} vs ${thr.version})`);
+  check(thr.threads === threads && threads > 1, `${dim}D: thread pool has ${thr.threads} threads`);
+  check(Math.abs(a.avgY - b.avgY) < 0.05, `${dim}D: final avg height matches (${a.avgY.toFixed(4)} vs ${b.avgY.toFixed(4)})`);
+  if (dim === 3) {
+    check(Math.abs(a.collisionStarts - b.collisionStarts) <= Math.max(5, a.collisionStarts * 0.02), `3D: collision events match (${a.collisionStarts} vs ${b.collisionStarts})`);
+    check(b.sensorHits > 0 && Math.abs(a.sensorHits - b.sensorHits) <= Math.max(3, a.sensorHits * 0.05), `3D: sensor events (${a.sensorHits} vs ${b.sensorHits})`);
+    check(b.hookCalls > 0 && Math.abs(a.hookCalls - b.hookCalls) <= Math.max(10, a.hookCalls * 0.05), `3D: JS physics hooks called (${a.hookCalls} vs ${b.hookCalls})`);
+    check(a.rayToi != null && b.rayToi != null && Math.abs(a.rayToi - b.rayToi) < 0.5, `3D: raycast (${a.rayToi?.toFixed(3)} vs ${b.rayToi?.toFixed(3)})`);
+    check(b.intersections > 0, `3D: shape intersection query (${a.intersections} vs ${b.intersections})`);
+  }
+  const speedup = a.stepMeanMs / b.stepMeanMs;
+  say(`INFO  ${dim}D step mean: official ${a.stepMeanMs.toFixed(2)} ms, threads ${b.stepMeanMs.toFixed(2)} ms -> ${speedup.toFixed(2)}x`);
+  results[dim] = { official: a, threads: b, speedup };
+}
+say(failures.length ? `\n${failures.length} FAILED` : "\nALL PASSED");
+out.className = failures.length ? "bad" : "ok";
+window.__result = { passed: failures.length === 0, failures, results, lines };
+</script>
+</body>
+</html>

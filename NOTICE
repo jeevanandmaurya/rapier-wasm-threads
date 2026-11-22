@@ -1,0 +1,15 @@
+rapier-threads
+Unofficial multi-threaded WebAssembly build of the Rapier physics engine.
+
+This product includes software developed by Dimforge and the Rapier contributors
+(https://github.com/dimforge/rapier), licensed under the Apache License, Version 2.0.
+Rapier is a trademark of its owners; this project is not affiliated with or endorsed by Dimforge.
+
+Modifications made by this project (applied at build time to the generated build crate only):
+  - enables the `parallel` and `unsync-callbacks` features of the rapier crate;
+  - adds the `wasm-bindgen-rayon` dependency and exports `initThreadPool`;
+  - compiles with WebAssembly threads (atomics, shared memory) and SIMD;
+  - replaces `raw.ts` and `init.ts` of the TypeScript bindings;
+  - adds a small Vite plugin (vite.js) that serves the package files unmodified.
+
+wasm-bindgen-rayon is Copyright Google LLC, licensed under the Apache License, Version 2.0.

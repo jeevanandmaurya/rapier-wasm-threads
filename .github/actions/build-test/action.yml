@@ -1,0 +1,53 @@
+name: Build and test
+description: Builds the threads packages from upstream.json and runs the browser conformance tests.
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v7.1.0
+      with:
+        node-version: 22
+        registry-url: https://registry.npmjs.org
+
+    - name: Read pinned tool versions
+      id: cfg
+      shell: bash
+      run: |
+        echo "nightly=$(jq -r .nightly config.json)" >> "$GITHUB_OUTPUT"
+        echo "wasm_bindgen=$(jq -r .wasmBindgen config.json)" >> "$GITHUB_OUTPUT"
+
+    - name: Rust nightly (+ rust-src, wasm32)
+      shell: bash
+      run: |
+        rustup toolchain install "${{ steps.cfg.outputs.nightly }}" --profile minimal \
+          --component rust-src --target wasm32-unknown-unknown
+        rustup toolchain install stable --profile minimal
+
+    - name: wasm-bindgen CLI
+      uses: taiki-e/install-action@v2.90.8
+      with:
+        tool: wasm-bindgen@${{ steps.cfg.outputs.wasm_bindgen }}
+
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: .upstream/bindings/typescript -> target
+        cache-on-failure: true
+
+    - name: npm ci
+      shell: bash
+      run: npm ci
+
+    - name: Build (upstream generator, with nunjucks parity check)
+      shell: bash
+      run: node scripts/build.mjs --check-parity
+
+    - name: Install built packages for the Vite test
+      shell: bash
+      run: |
+        for d in dist/*; do npm install --no-save "./$d"; done
+
+    - name: Browser tests (conformance vs official, threads, Vite dev + build)
+      shell: bash
+      run: |
+        npx playwright install --with-deps chromium
+        node test/run.mjs --dims "$(jq -r '.dims | join(",")' config.json)" --threads 2
+        node test/vite.mjs

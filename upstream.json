@@ -1,0 +1,6 @@
+{
+  "repo": "https://github.com/dimforge/rapier.git",
+  "npmPackage": "@dimforge/rapier3d-simd-compat",
+  "version": "0.21.0",
+  "commit": "b716d375efc0201003f0cd9ef7168eee0b62c177"
+}

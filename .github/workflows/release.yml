@@ -1,0 +1,24 @@
+name: Release (manual)
+
+# Publishes the version in upstream.json. Use it for the first release, or to republish after a fix.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: ./.github/actions/build-test
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm install -g npm@12   # trusted publishing needs npm >= 11.5
+          node scripts/publish.mjs

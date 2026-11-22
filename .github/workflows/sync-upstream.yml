@@ -1,0 +1,79 @@
+name: Sync upstream and release
+
+# Daily: if Dimforge published a new Rapier JS release, rebuild it as a threads build from the
+# exact commit npm says it came from, run the full test suite, then commit, tag and publish.
+# If anything fails, nothing is published and an issue is opened instead.
+
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Rebuild and publish the current upstream.json version even if nothing changed
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  issues: write
+  id-token: write # npm provenance / trusted publishing
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 22
+
+      - name: Check for a new upstream release
+        id: check
+        run: node scripts/check-upstream.mjs
+
+      - name: Refresh lockfile
+        if: steps.check.outputs.changed == 'true'
+        run: npm install --package-lock-only
+
+      - name: Build and test
+        if: steps.check.outputs.changed == 'true' || inputs.force
+        uses: ./.github/actions/build-test
+
+      - name: Commit and tag
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          git config user.name "rapier-threads-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add upstream.json package.json package-lock.json
+          git commit -m "Sync upstream Rapier ${{ steps.check.outputs.version }}"
+          git tag "v${{ steps.check.outputs.version }}"
+          git push origin HEAD:main --tags
+
+      - name: Publish to npm
+        if: steps.check.outputs.changed == 'true' || inputs.force
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm install -g npm@12   # trusted publishing needs npm >= 11.5
+          node scripts/publish.mjs
+
+      - name: Open an issue on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Upstream sync failed: ${{ steps.check.outputs.previous }} -> ${{ steps.check.outputs.version }}"
+          if ! gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[0].number' | grep -q .; then
+            gh issue create --title "$title" --body "The automatic sync could not build, test or publish the new upstream release. Nothing was published.
+
+          Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          Most likely an upstream change broke one of the checked assumptions in scripts/build.mjs (they fail with \"upstream layout changed: ...\")."
+          fi

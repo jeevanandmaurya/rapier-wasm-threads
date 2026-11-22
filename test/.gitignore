@@ -1,0 +1,3 @@
+vite-app/dist/
+vite-app/vite.config.js
+vite-app/physics.worker.js
